@@ -40,9 +40,13 @@ xlabel("time (ms)")
 ylabel("Lick")
 
 ## Cumulative lick plot
-figure();
+figure( figsize = (4,3));
 plot(x, cumsum(touch))
 plot(x, cumsum(lick))
+legend(["Touch", "Lick"])
+xlabel("Time (min)")
+ylabel("Cumulative touch")
+tight_layout();
 @testset "LickometerUtils.jl" begin
     # Write your tests here.
 end
