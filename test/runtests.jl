@@ -1,6 +1,48 @@
 using LickometerUtils
+using CSV, DataFrames
+using PythonPlot
 using Test
 
+## Load data
+fn = "./test/AR11.CSV"
+df = CSV.read(fn, DataFrame)
+
+## Initial parameters
+waittime = get_waittime(df)
+thresh_cap = 200 # sensor value
+thresh_interval = 150 #millisecond. Allow for 2~3 licks being detected as a single long lick.
+
+## scale time into second (x-axis)
+m = scaletime(size(df, 1), waittime) #total recording minute
+x = range(1,m, size(df, 1))
+
+## touch & lick
+touch = detect_touch(df[:, 1], 200)
+lick = detect_lick(df[:, 1], 200, thresh_interval)
+
+## Plot capacitance sensor
+hfig = figure()
+p1 = hfig.add_subplot(3,1,1)
+p1.plot(x, df[:, 1])
+xlabel("time (min)")
+ylabel("Capacitance value")
+
+## Plot touch
+p2 = hfig.add_subplot(3,1,2)
+p2.plot(x, touch)
+xlabel("time (min)")
+ylabel("Touch")
+
+## Plot lick
+p3 = hfig.add_subplot(3,1,3)
+p3.plot(x, lick)
+xlabel("time (ms)")
+ylabel("Lick")
+
+## Cumulative lick plot
+figure();
+plot(x, cumsum(touch))
+plot(x, cumsum(lick))
 @testset "LickometerUtils.jl" begin
     # Write your tests here.
 end
