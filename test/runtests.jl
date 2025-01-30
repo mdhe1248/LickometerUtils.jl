@@ -13,12 +13,13 @@ thresh_cap = 200 # sensor value
 thresh_interval = 150 #millisecond. Allow for 2~3 licks being detected as a single long lick.
 
 ## scale time into second (x-axis)
-m = scaletime(size(df, 1), waittime) #total recording minute
-x = range(1,m, size(df, 1))
+rawdata = df[:, 1] #data from single port
+m = scaletime(length(df), waittime) #total recording minute
+x = range(1,m, length(df))
 
 ## touch & lick
-touch = detect_touch(df[:, 1], 200)
-lick = detect_lick(df[:, 1], 200, thresh_interval)
+touch = detect_touch(rawdata, 200)
+lick = detect_lick(rawdata, 200, thresh_interval)
 
 ## Plot capacitance sensor
 hfig = figure()

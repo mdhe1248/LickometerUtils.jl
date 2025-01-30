@@ -12,27 +12,29 @@ end
 
 """ Using a threshold, detect touch from raw recording. non-touch: 0, touch: 1."""
 function detect_touch(y, thresh)
+    y1 = copy(y)
     for (i, v) in enumerate(y)
         if v > thresh || v == -2
-            y[i] = 1
+            y1[i] = 1
         else 
-            y[i] = 0
+            y1[i] = 0
         end
     end
-    return y
+    return y1
 end
 
 """Remove long touch. interval_thresh is touch duration. If touch lasts longer than the threshold, it becomes 0."""
 function remove_long_touch(touch, interval_thresh)
-    y = vcat(diff(touch), 0)
+    touch1 = copy(touch)
+    y = vcat(diff(touch1), 0)
     on = findall(y.== 1)
     off = findall(y.== -1)
     for i in eachindex(on)
         if off[i] - on[i] > interval_thresh
-            touch[on[i]:off[i]] .=0
+            touch1[on[i]:off[i]] .=0
         end
     end
-    return touch 
+    return touch1 
 end
 
 """ Detect licks. 
