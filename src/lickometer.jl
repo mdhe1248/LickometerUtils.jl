@@ -26,7 +26,7 @@ end
 """Remove long touch. interval_thresh is touch duration. If touch lasts longer than the threshold, it becomes 0."""
 function remove_long_touch(touch, interval_thresh)
     touch1 = copy(touch)
-    y = vcat(diff(touch1), 0)
+    y = diff(vcat(touch1, 0))
     on = findall(y.== 1)
     off = findall(y.== -1)
     for i in eachindex(on)

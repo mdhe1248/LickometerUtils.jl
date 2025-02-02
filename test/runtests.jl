@@ -5,21 +5,24 @@ using Test
 
 ## Load data
 fn = "./test/AR11.CSV"
+#fn = "./test/AR11_003.CSV"
 df = CSV.read(fn, DataFrame)
 
 ## Initial parameters
 waittime = get_waittime(df)
-thresh_cap = 200 # sensor value
+thresh_cap = 100 # sensor value
 thresh_interval = 150 #millisecond. Allow for 2~3 licks being detected as a single long lick.
 
 ## scale time into second (x-axis)
 rawdata = df[:, 1] #data from single port
-m = scaletime(length(df), waittime) #total recording minute
-x = range(1,m, length(df))
+m = scaletime(length(rawdata), waittime) #total recording minute
+x = range(1,m, length(rawdata))
 
 ## touch & lick
-touch = detect_touch(rawdata, 200)
-lick = detect_lick(rawdata, 200, thresh_interval)
+touch = detect_touch(rawdata, thresh_cap)
+remove_long_touch(touch, thresh_interval)
+
+lick = detect_lick(rawdata, thresh_cap, thresh_interval)
 
 ## Plot capacitance sensor
 hfig = figure()
