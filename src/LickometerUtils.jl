@@ -1,6 +1,7 @@
 module LickometerUtils
 
-export scaletime, get_waittime, detect_touch, remove_long_touch, detect_lick 
+export TouchSensor
+export get_recording_time, get_waittime, detect_touch, remove_long_touch, detect_lick, detect_touchmoment
 include("lickometer.jl")
 # Write your package code here.
 
