@@ -16,40 +16,40 @@ thresh_cap = 50 # sensor value
 thresh_interval = 2 #waittime * thresh_interval is the duration (ms). Allow up to 50ms for a single lick.
 filter_windowsize = 50 #Number of data points. For baseline correction
 
-## Update data
-dat = TouchSensor(rawdata, waittime, thresh_cap, thresh_interval, filter_windowsize)
-t0 = detect_touchmoment(dat.touch)
-l0 = detect_touchmoment(dat.lick)
+## Process and update data 
+result = TouchSensor(rawdata, waittime, thresh_cap, thresh_interval, filter_windowsize)
+t0 = detect_touchmoment(result.touch)
+l0 = detect_touchmoment(result.lick)
 
 
 #### Plot capacitance sensor
 ## scale time into second (x-axis)
 scale = "min"
-m = get_recording_time(length(rawdata), waittime, scale) #total recording minute
+m = get_recording_time(length(rawdata), waittime, scale) #total recording time in minute
 x = range(1,m, length(rawdata))
 
 ## Plot raw data
 hfig = figure(figsize = (6,6))
 p1 = hfig.add_subplot(4,1,1)
-p1.plot(x, dat.rawdata)
+p1.plot(x, result.rawdata)
 xlabel("time ($scale)")
 ylabel("Capacitance value")
 
 ## Plot touch
 p2 = hfig.add_subplot(4,1,2)
-p2.plot(x, dat.corrected_rawdata)
+p2.plot(x, result.corrected_rawdata)
 xlabel("time ($scale)")
 ylabel("Corrected data")
 
 ## Plot lick
 p3 = hfig.add_subplot(4,1,3)
-p3.plot(x, dat.touch)
+p3.plot(x, result.touch)
 xlabel("time ($scale)")
 ylabel("Touch")
 
 ## Plot lick
 p4 = hfig.add_subplot(4,1,4)
-p4.plot(x, dat.lick)
+p4.plot(x, result.lick)
 xlabel("time ($scale)")
 ylabel("Lick")
 
