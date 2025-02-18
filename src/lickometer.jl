@@ -2,7 +2,7 @@ using DataFrames, Statistics
 
 struct TouchSensor
     rawdata::AbstractVector
-    waittime::Number #millisecond
+    sampling_interval::Number #millisecond
     thresh_cap::Number
     thresh_interval::Number
     filter_windowsize::Number
@@ -10,7 +10,7 @@ struct TouchSensor
     corrected_rawdata::AbstractVector
     touch::AbstractVector
     lick::AbstractVector
-    function TouchSensor(rawdata, waittime, thresh_cap, thresh_interval, filter_windowsize)
+    function TouchSensor(rawdata, sampling_interval, thresh_cap, thresh_interval, filter_windowsize)
         rawdata1 = copy(rawdata)
         rawdata1[rawdata1.== -2] .= 5000
         baseline = estimate_baseline(rawdata1, filter_windowsize)
@@ -18,7 +18,7 @@ struct TouchSensor
 #        touch = corrected_rawdata .> thresh_cap
         touch = detect_touch(corrected_rawdata, thresh_cap)
         lick = detect_lick(corrected_rawdata, thresh_cap, thresh_interval)
-        new(rawdata, waittime, thresh_cap, thresh_interval, filter_windowsize, baseline, corrected_rawdata, touch, lick)
+        new(rawdata, sampling_interval, thresh_cap, thresh_interval, filter_windowsize, baseline, corrected_rawdata, touch, lick)
     end
 end
 
@@ -34,20 +34,20 @@ end
 """ Get the total recording time with a given time scale.
 `scale` can be milisecond ("ms" or "millisecond"), second ("s", "sec", or "second"), minute ("m", "min", or "minute").
 """
-function get_recording_time(x, waittime, scale)
+function get_recording_time(x, sampling_interval, scale)
     if scale ∈  ["min", "m", "minute"]
-        t = x*waittime/1000/60 #millisecond to minute
+        t = x*sampling_interval/1000/60 #millisecond to minute
     elseif scale ∈  ["sec", "s", "second"]
-        t = x*waittime/1000
+        t = x*sampling_interval/1000
     elseif scale ∈  ["millisecond", "ms"]
-        t = x*waittime
+        t = x*sampling_interval
     end
     return t
 end
 
 
 """ Get wait time from the data frame"""
-function get_waittime(df::DataFrame)
+function get_sampling_interval(df::DataFrame)
     s = names(df)[2]
     idx = findfirst(==(':'), s)
     return parse(Int, s[idx+1:end])
