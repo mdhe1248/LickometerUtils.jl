@@ -31,20 +31,30 @@ function estimate_baseline(rawdata::AbstractVector, window_size::Int)
 end
 
 
-""" Get the total recording time with a given time scale.
-`scale` can be milisecond ("ms" or "millisecond"), second ("s", "sec", or "second"), minute ("m", "min", or "minute").
+""" Get the recording time axis with a given time scale.
+`i0` is the start index.
+`i1` is the last index.
+`scale` can be milisecond ("ms" or "millisecond"), second ("s", "sec", or "second"), minute ("m", "min", or "minute"), or hour ("h", "hr", or "hour").
+If there are only 3 input arguments, then `i0` is set to be 0.
 """
-function get_recording_time(x, sampling_interval, scale)
+function get_recording_time(i0, i1, sampling_interval, scale)
     if scale ∈  ["min", "m", "minute"]
-        t = x*sampling_interval/1000/60 #millisecond to minute
+        t1 = i1*sampling_interval/1000/60 #millisecond to minute
+        t0 = i0*sampling_interval/1000/60 #millisecond to minute
     elseif scale ∈  ["sec", "s", "second"]
-        t = x*sampling_interval/1000
+        t1 = i1*sampling_interval/1000
+        t0 = i0*sampling_interval/1000
     elseif scale ∈  ["millisecond", "ms"]
-        t = x*sampling_interval
+        t1 = i1*sampling_interval
+        t0 = i0*sampling_interval
+    elseif scale ∈  ["hour", "hr", "h"]
+        t1 = i1*sampling_interval/1000/60/60
+        t0 = i0*sampling_interval/1000/60/60
     end
-    return t
+    xi = range(t0, t1, i1-i0) 
+    return xi
 end
-
+get_recording_time(i1, sampling_interval, scale) = get_recording_time(0, i1, sampling_interval, scale)
 
 """ Get wait time from the data frame"""
 function get_sampling_interval(df::DataFrame)
