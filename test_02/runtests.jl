@@ -32,7 +32,7 @@ fnidx = [3,6,1,4,12,11,10] #arduino file name
 msidx = [1,2,3,4,6,7,8] #Corresponding mouse ID
 sampling_interval = 25  #Sampling time interval. Probably 25 or 50 (ms). Sampling rate.
 thresh_cap = 100 # sensor value
-thresh_interval = 2 #sampling_interval * thresh_interval is the duration (ms). Allow up to 50ms for a single lick.
+thresh_interval = 3 #sampling_interval * thresh_interval is the duration (ms). Allow up to 50ms for a single lick.
 filter_windowsize = 50 #Number of data points. For baseline correction
 
 ## Load data
@@ -47,8 +47,6 @@ rawdata = df[:, 2] #data from single port
 
 ## Calculate licking events
 result = TouchSensor(rawdata, sampling_interval, thresh_cap, thresh_interval, filter_windowsize)
-t0 = detect_touchmoment(result.touch)
-l0 = detect_touchmoment(result.lick)
 
 #### Plot capacitance sensor
 ## scale time into second (x-axis)
@@ -63,21 +61,21 @@ xlabel("time ($scale)")
 ylabel("Capacitance value")
 
 ## Plot corrected_rawdata
-p2 = hfig.add_subplot(4,1,2)
+p2 = hfig.add_subplot(4,1,2, sharex = p1)
 p2.plot(xi, result.corrected_rawdata)
 xlabel("time ($scale)")
 ylabel("Corrected data")
 p2.sharex(p1)
 
 ## Plot touch
-p3 = hfig.add_subplot(4,1,3)
+p3 = hfig.add_subplot(4,1,3, sharex = p1)
 p3.plot(xi, result.touch)
 xlabel("time ($scale)")
 ylabel("Touch")
 p3.sharex(p1)
 
 ## Plot lick
-p4 = hfig.add_subplot(4,1,4)
+p4 = hfig.add_subplot(4,1,4, sharex = p1)
 p4.plot(xi, result.lick)
 xlabel("time ($scale)")
 ylabel("Lick")
@@ -86,8 +84,8 @@ p4.sharex(p1)
 
 ## Cumulative lick plot
 figure( figsize = (4,3), string(mouseid[i], " cumulative lick"));
-plot(xi, cumsum(t0))
-plot(xi, cumsum(l0))
+plot(xi, cumsum(detect_touchmoment(result.touch)))
+plot(xi, cumsum(result.lick))
 legend(["Touch", "Lick"])
 xlabel("Time ($scale)")
 ylabel("Cumulative touch")
@@ -136,3 +134,9 @@ for i in 1:length(results)
     i < length(results) ? p_axes[i].set_xticklabels(Int[]) : nothing #Last plot still has xticklabels
 end
 p_axes[length(results)+1].set_position([0.25, 0.1, 0.65, 0.2]) #Left, bottom, width, height
+
+
+
+
+lick = vcat(zeros(Int, 20), [0, 1, 1, 0, 0, 1], zeros(Int, 20))
+a = lickevent_filter(lick, 15, 3)

@@ -11,16 +11,13 @@ df = CSV.read(fn, DataFrame)
 
 ## Initial parameters
 rawdata = df[:, 1] #data from single port
-sampling_interval = get_sampling_interval(df) #Probably 25 or 50 (ms)
+sampling_interval = 25  #Probably 25 or 50 (ms)
 thresh_cap = 50 # sensor value
 thresh_interval = 2 #waittime * thresh_interval is the duration (ms). Allow up to 50ms for a single lick.
 filter_windowsize = 50 #Number of data points. For baseline correction
 
 ## Process and update data 
 result = TouchSensor(rawdata, sampling_interval, thresh_cap, thresh_interval, filter_windowsize)
-t0 = detect_touchmoment(result.touch)
-l0 = detect_touchmoment(result.lick)
-
 
 #### Plot capacitance sensor
 ## scale time into second (x-axis)
@@ -35,27 +32,26 @@ xlabel("time ($scale)")
 ylabel("Capacitance value")
 
 ## Plot touch
-p2 = hfig.add_subplot(4,1,2)
+p2 = hfig.add_subplot(4,1,2, sharex = p1)
 p2.plot(xi, result.corrected_rawdata)
 xlabel("time ($scale)")
 ylabel("Corrected data")
 
 ## Plot lick
-p3 = hfig.add_subplot(4,1,3)
+p3 = hfig.add_subplot(4,1,3, sharex = p1)
 p3.plot(xi, result.touch)
 xlabel("time ($scale)")
 ylabel("Touch")
 
 ## Plot lick
-p4 = hfig.add_subplot(4,1,4)
+p4 = hfig.add_subplot(4,1,4, sharex = p1)
 p4.plot(xi, result.lick)
 xlabel("time ($scale)")
 ylabel("Lick")
 
 ## Cumulative lick plot
 figure( figsize = (4,3));
-plot(xi, cumsum(t0))
-plot(xi, cumsum(l0))
+plot(xi, cumsum(result.lick))
 legend(["Touch", "Lick"])
 xlabel("Time ($scale)")
 ylabel("Cumulative touch")
