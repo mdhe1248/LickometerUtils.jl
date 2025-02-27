@@ -15,9 +15,9 @@ struct TouchSensor
         rawdata1[rawdata1.== -2] .= 5000
         baseline = estimate_baseline(rawdata1, filter_windowsize)
         corrected_rawdata = rawdata1.-baseline
-#        touch = corrected_rawdata .> thresh_cap
         touch = detect_touch(corrected_rawdata, thresh_cap)
         lick = detect_lick(corrected_rawdata, thresh_cap, thresh_interval)
+        lick = lickevent_filter(lick, 20, 3) # Lick definition: the same or greater than three short touches within 15 time points (15*25 ms)
         new(rawdata, sampling_interval, thresh_cap, thresh_interval, filter_windowsize, baseline, corrected_rawdata, touch, lick)
     end
 end
@@ -103,4 +103,12 @@ function detect_touchmoment(touch0::AbstractVector)
     return touchon.== 1
 end
 
-
+""" Lick is defined by the number of short touches within a short time window"""
+function lickevent_filter(lick::AbstractVector, winsz, nthresh)
+    lick_filtered = falses(length(lick))
+    l0 = detect_touchmoment(lick)
+    a = [sum(l0[max(i, 1):min(i+winsz, length(l0))]) for i in eachindex(l0)]
+    idx1 = findall(a .>= nthresh)
+    [lick_filtered[i:i+winsz] .= l0[i:i+winsz] for i in idx1]
+    lick_filtered
+end
