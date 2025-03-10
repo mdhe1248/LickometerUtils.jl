@@ -1,25 +1,58 @@
 using DataFrames, Statistics
 
-struct TouchSensor
+#struct TouchSensor
+#    rawdata::AbstractVector
+#    sampling_interval::Number #millisecond
+#    thresh_cap::Number
+#    thresh_interval::Number
+#    filter_windowsize::Number
+#    baseline::AbstractVector
+#    corrected_rawdata::AbstractVector
+#    touch::AbstractVector
+#    lick::AbstractVector
+#    function TouchSensor(rawdata, sampling_interval, thresh_cap, thresh_interval, filter_windowsize)
+#        rawdata1 = copy(rawdata)
+#        rawdata1[rawdata1.== -2] .= 5000
+#        baseline = estimate_baseline(rawdata1, filter_windowsize)
+#        corrected_rawdata = rawdata1.-baseline
+#        touch = detect_touch(corrected_rawdata, thresh_cap)
+#        lick = detect_lick(corrected_rawdata, thresh_cap, thresh_interval)
+#        lick = lickevent_filter(lick, 20, 3) # Lick definition: the same or greater than three short touches within 15 time points (15*25 ms)
+#        new(rawdata, sampling_interval, thresh_cap, thresh_interval, filter_windowsize, baseline, corrected_rawdata, touch, lick)
+#    end
+#end
+
+abstract type AbstractSensor end
+struct FedBox <: AbstractSensor
     rawdata::AbstractVector
-    sampling_interval::Number #millisecond
-    thresh_cap::Number
-    thresh_interval::Number
-    filter_windowsize::Number
-    baseline::AbstractVector
-    corrected_rawdata::AbstractVector
-    touch::AbstractVector
-    lick::AbstractVector
-    function TouchSensor(rawdata, sampling_interval, thresh_cap, thresh_interval, filter_windowsize)
-        rawdata1 = copy(rawdata)
-        rawdata1[rawdata1.== -2] .= 5000
-        baseline = estimate_baseline(rawdata1, filter_windowsize)
-        corrected_rawdata = rawdata1.-baseline
-        touch = detect_touch(corrected_rawdata, thresh_cap)
-        lick = detect_lick(corrected_rawdata, thresh_cap, thresh_interval)
-        lick = lickevent_filter(lick, 20, 3) # Lick definition: the same or greater than three short touches within 15 time points (15*25 ms)
-        new(rawdata, sampling_interval, thresh_cap, thresh_interval, filter_windowsize, baseline, corrected_rawdata, touch, lick)
-    end
+end
+
+struct Touch <: AbstractSensor 
+    rawdata::AbstractVector
+    sampling_interval::Float64
+    thresh_cap::Float64
+    thresh_interval::Float64
+    filter_windowsize::Int
+end
+
+function preprocess_rawdata(rawdata::AbstractVector)
+    processed = copy(rawdata)
+    processed[processed .== -2] .= 5000
+    return processed
+end
+
+function detect(sensor::Touch)
+    rawdata_processed = preprocess_rawdata(sensor.rawdata)
+    baseline = estimate_baseline(rawdata_processed, sensor.filter_windowsize)
+    corrected_rawdata = rawdata_processed .- baseline
+    lick = detect_lick(corrected_rawdata, sensor.thresh_cap, sensor.thresh_interval)
+    lick = lickevent_filter(lick, 20, 3)
+    return lick
+end
+
+function detect(sensor::FedBox)
+    bncdiff = vcat(diff(sensor.rawdata), [0])
+    return(bncdiff .== 1)
 end
 
 function estimate_baseline(rawdata::AbstractVector, window_size::Int)
@@ -30,6 +63,47 @@ function estimate_baseline(rawdata::AbstractVector, window_size::Int)
     end
 end
 
+function meanvector(vectors::AbstractVector{<:Vector}, xi::AbstractRange)
+    truncated_vectors = [v[xi] for v in vectors]
+    return mean(hcat(truncated_vectors...), dims = 2)[:]
+end
+meanvector(vectors::AbstractVector{<:Vector}) = meanvector(vectors, 1:minimum(length.(vectors)))
+
+function stdvector(vectors::AbstractVector{<:Vector}, xi::AbstractRange)
+    truncated_vectors = [v[xi] for v in vectors]
+    return std(hcat(truncated_vectors))
+end
+stdvector(vectors::AbstractVector{<:Vector}) = stdvector(vectors, 1:minimum(length.(vectors)))
+
+function semvector(vectors::AbstractVector{<:Vector}, xi::AbstractRange)
+    n = length(vectors)
+    truncated_vectors = [v[xi] for v in vectors]
+    return std(hcat(truncated_vectors...))./sqrt(n)
+end
+semvector(vectors) = semvector(vectors, 1:minimum(length.(vectors)))
+
+function analyze_multiple_sensors(sensors, xi)
+    mean_vals = Vector{Float64}()
+    std_vals = Vector{Float64}()
+    sem_vals = Vector{Float64}()
+
+    cumulative_vec = cumsum.(detect.(sensors))
+    mean_vals = meanvector(cumulative_vec, xi)
+    std_vals = stdvector(cumulative_vec, xi)
+    sem_vals = semvector(cumulative_vec, xi)
+    return(mean_vals, std_vals, sem_vals)
+end
+function analyze_multiple_sensors(sensors)
+    mean_vals = Vector{Float64}()
+    std_vals = Vector{Float64}()
+    sem_vals = Vector{Float64}()
+
+    cumulative_vec = cumsum.(detect.(sensors))
+    mean_vals = meanvector(cumulative_vec)
+    std_vals = stdvector(cumulative_vec)
+    sem_vals = semvector(cumulative_vec)
+    return(mean_vals, std_vals, sem_vals)
+end
 
 """ Get the recording time axis with a given time scale.
 `i0` is the start index.
@@ -67,7 +141,7 @@ end
 function detect_touch(y::AbstractVector, thresh_cap)
     return (y .> thresh_cap)
 end
-detect_touch(x::TouchSensor) = detect_touch(x.rawdata, x.thresh_cap)
+#detect_touch(x::TouchSensor) = detect_touch(x.rawdata, x.thresh_cap)
 
 """Remove long touch. interval_thresh is touch duration. If touch lasts longer than the threshold, it becomes 0."""
 function remove_long_touch(touch0::AbstractVector, thresh_interval)
@@ -92,18 +166,18 @@ function detect_lick(y::AbstractVector, thresh_cap, thresh_interval)
     return lick
 end
 
-function detect_lick(x::TouchSensor)
-    touch0 = detect_touch(x)
-    lick = remove_long_touch(touch0, x.thresh_interval)
-    return lick
-end
+#function detect_lick(x::TouchSensor)
+#    touch0 = detect_touch(x)
+#    lick = remove_long_touch(touch0, x.thresh_interval)
+#    return lick
+#end
 
 function detect_touchmoment(touch0::AbstractVector)
     touchon = vcat(diff(touch0), 0)
     return touchon.== 1
 end
 
-""" Lick is defined by the number of short touches within a short time window"""
+""" Vector is filtered. Lick is defined by the number of short touches `nthresh`  within a short time window `winzs`"""
 function lickevent_filter(lick::AbstractVector, winsz, nthresh)
     lick_filtered = falses(length(lick))
     l0 = detect_touchmoment(lick)
