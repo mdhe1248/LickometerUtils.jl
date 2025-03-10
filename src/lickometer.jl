@@ -63,19 +63,19 @@ function estimate_baseline(rawdata::AbstractVector, window_size::Int)
     end
 end
 
-function meanvector(vectors::AbstractVector{<:Vector}, xi::AbstractRange)
+function meanvector(vectors::AbstractVector{<:AbstractVector}, xi::AbstractRange)
     truncated_vectors = [v[xi] for v in vectors]
     return mean(hcat(truncated_vectors...), dims = 2)[:]
 end
-meanvector(vectors::AbstractVector{<:Vector}) = meanvector(vectors, 1:minimum(length.(vectors)))
+meanvector(vectors::AbstractVector{<:AbstractVector}) = meanvector(vectors, 1:minimum(length.(vectors)))
 
-function stdvector(vectors::AbstractVector{<:Vector}, xi::AbstractRange)
+function stdvector(vectors::AbstractVector{<:AbstractVector}, xi::AbstractRange)
     truncated_vectors = [v[xi] for v in vectors]
     return std(hcat(truncated_vectors))
 end
-stdvector(vectors::AbstractVector{<:Vector}) = stdvector(vectors, 1:minimum(length.(vectors)))
+stdvector(vectors::AbstractVector{<:AbstractVector}) = stdvector(vectors, 1:minimum(length.(vectors)))
 
-function semvector(vectors::AbstractVector{<:Vector}, xi::AbstractRange)
+function semvector(vectors::AbstractVector{<:AbstractVector}, xi::AbstractRange)
     n = length(vectors)
     truncated_vectors = [v[xi] for v in vectors]
     return std(hcat(truncated_vectors...))./sqrt(n)
