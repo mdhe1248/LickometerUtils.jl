@@ -1,6 +1,8 @@
 using LickometerUtils
-using CSV, DataFrames
+using CSV, DataFrames, AxisArrays
 using PythonPlot, Statistics
+using Unitful
+using Unitful: s, ms, minute
 
 function prepare_filenames(fndix)
     "AR".*lpad.(fnidx, 2, '0').*".CSV"
@@ -30,12 +32,13 @@ end
 ## Initialize variables
 fnidx = [3,6,1,4,12,11,10] #arduino file name
 msidx = [1,2,3,4,6,7,8] #Corresponding mouse ID
-sampling_interval = 25  #Sampling time interval. Probably 25 or 50 (ms). Sampling rate.
+sampling_interval = 25ms  #Sampling time interval. Probably 25 or 50 (ms). Sampling rate.
 thresh_cap = 100 # sensor value
 thresh_interval = 3 #sampling_interval * thresh_interval is the duration (ms). Allow up to 50ms for a single lick.
 filter_windowsize = 50 #Number of data points. For baseline correction
 
 ## Load data
+cd("test_02")
 mouseid = prepare_mousename(msidx) #mouse id
 fns = prepare_filenames(fnidx)
 dfs = CSV.read.(fns, DataFrame)
@@ -44,33 +47,35 @@ dfs = CSV.read.(fns, DataFrame)
 i = 1 #First dataset
 df = dfs[i]
 rawdata = df[:, 2] #data from single port
+fedbox = df[:, 2] #data from single port
 
 ## Calculate licking events
-result = TouchSensor(rawdata, sampling_interval, thresh_cap, thresh_interval, filter_windowsize)
+result = Sensor(rawdata, fedbox, sampling_interval, thresh_cap, thresh_interval, filter_windowsize)
 
 #### Plot capacitance sensor
-## scale time into second (x-axis)
-scale = "min"
-xi = get_recording_time(length(rawdata), sampling_interval, scale) #total recording time in minute
+xims = result.lick.axes[1].val
+ximin  = uconvert.(u"minute", xims)
+xi = map(x -> x.val, ximin)
+timescale = "min"
 
 ## Plot raw data
 hfig = figure(figsize = (6,6), string(mouseid[i], " Lickometer"))
 p1 = hfig.add_subplot(4,1,1)
-p1.plot(xi, result.rawdata)
-xlabel("time ($scale)")
+p1.plot(xi, result.capacitive_data)
+xlabel("time ($timescale)")
 ylabel("Capacitance value")
 
 ## Plot corrected_rawdata
 p2 = hfig.add_subplot(4,1,2, sharex = p1)
-p2.plot(xi, result.corrected_rawdata)
-xlabel("time ($scale)")
+p2.plot(xi, result.corrected_capacitive_data)
+xlabel("time ($timescale)")
 ylabel("Corrected data")
 p2.sharex(p1)
 
 ## Plot touch
 p3 = hfig.add_subplot(4,1,3, sharex = p1)
 p3.plot(xi, result.touch)
-xlabel("time ($scale)")
+xlabel("time ($timescale)")
 ylabel("Touch")
 p3.sharex(p1)
 
@@ -87,7 +92,7 @@ figure( figsize = (4,3), string(mouseid[i], " cumulative lick"));
 plot(xi, cumsum(detect_touchmoment(result.touch)))
 plot(xi, cumsum(result.lick))
 legend(["Touch", "Lick"])
-xlabel("Time ($scale)")
+xlabel("Time ($timescale)")
 ylabel("Cumulative touch")
 tight_layout();
 

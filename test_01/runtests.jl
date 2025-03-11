@@ -11,7 +11,7 @@ df = CSV.read(fn, DataFrame)
 
 ## Initial parameters
 sampling_interval = 25  #Probably 25 or 50 (ms)
-thresh_cap = 50 # sensor value
+thresh_cap = 100 # sensor value
 thresh_interval = 2 #waittime * thresh_interval is the duration (ms). Allow up to 50ms for a single lick.
 filter_windowsize = 75 #Number of data points. For baseline correction
 timescale = "min"
