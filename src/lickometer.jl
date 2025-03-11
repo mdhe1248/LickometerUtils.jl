@@ -2,6 +2,7 @@ using DataFrames, Statistics
 using AxisArrays
 
 abstract type AbstractSensor end
+
 struct Sensor <: AbstractSensor
     capacitive_data::AbstractVector
     fedbox_data::Union{AbstractVector, Bool}
@@ -28,6 +29,31 @@ struct Sensor <: AbstractSensor
     end
 end
 
+struct Result <: AbstractSensor
+    virus::Union{AbstractString, Bool}
+    condition::Union{AbstractString, Bool}
+    lbl::Symbol
+    meanval::AbstractVector
+    stdval::AbstractVector
+    semval::AbstractVector
+end
+
+""" To calculate mean, std, and sem of a vector of Sensor type.
+if `xi` is not provided, the shorted length will be used"""
+function Result(virus::String, condition::String, field::Symbol, sensors::Vector{Sensor}, xi::Union{AbstractRange, ClosedInterval})
+    meanval = meanvector(sensors, field, xi)
+    stdval = stdvector(sensors, field, xi)
+    semval = semvector(sensors, field, xi)
+    Result(virus, condition, field, meanval, stdval, semval)
+end
+
+function Result(virus::String, condition::String, field::Symbol, sensors::Vector{Sensor})
+    meanval = meanvector(sensors, field)
+    stdval = stdvector(sensors, field)
+    semval = semvector(sensors, field)
+    Result(virus, condition, field, meanval, stdval, semval)
+end
+
 function preprocess_rawdata(rawdata::AbstractVector)
     processed = copy(rawdata)
     processed[processed .== -2] .= 5000
@@ -51,72 +77,31 @@ function estimate_baseline(rawdata::AbstractVector, window_size::Int)
     end
 end
 
-function meanvector(vectors::AbstractVector, xi::AbstractRange)
-    truncated_vectors = [v[xi] for v in vectors]
-    return mean(hcat(truncated_vectors...), dims = 2)[:]
-end
-meanvector(vectors::AbstractVector) = meanvector(vectors, 1:minimum(length.(vectors)))
-
-function stdvector(vectors::AbstractVector, xi::AbstractRange)
-    truncated_vectors = [v[xi] for v in vectors]
-    return std(hcat(truncated_vectors))
-end
-stdvector(vectors::AbstractVector) = stdvector(vectors, 1:minimum(length.(vectors)))
-
-function semvector(vectors::AbstractVector, xi::AbstractRange)
-    n = length(vectors)
-    truncated_vectors = [v[xi] for v in vectors]
-    return std(hcat(truncated_vectors...))./sqrt(n)
-end
-semvector(vectors) = semvector(vectors, 1:minimum(length.(vectors)))
-
-function analyze_multiple_sensors(sensors, xi)
-    mean_vals = Vector{Float64}()
-    std_vals = Vector{Float64}()
-    sem_vals = Vector{Float64}()
-
-    cumulative_vec = cumsum.(detect.(sensors))
-    mean_vals = meanvector(cumulative_vec, xi)
-    std_vals = stdvector(cumulative_vec, xi)
-    sem_vals = semvector(cumulative_vec, xi)
-    return(mean_vals, std_vals, sem_vals)
-end
-function analyze_multiple_sensors(sensors)
-    mean_vals = Vector{Float64}()
-    std_vals = Vector{Float64}()
-    sem_vals = Vector{Float64}()
-
-    cumulative_vec = cumsum.(detect.(sensors))
-    mean_vals = meanvector(cumulative_vec)
-    std_vals = stdvector(cumulative_vec)
-    sem_vals = semvector(cumulative_vec)
-    return(mean_vals, std_vals, sem_vals)
-end
-
-""" Get the recording time axis with a given time scale.
-`i0` is the start index.
-`i1` is the last index.
-`scale` can be milisecond ("ms" or "millisecond"), second ("s", "sec", or "second"), minute ("m", "min", or "minute"), or hour ("h", "hr", or "hour").
-If there are only 3 input arguments, then `i0` is set to be 0.
-"""
-function get_recording_time(i0, i1, sampling_interval, scale)
-    if scale ∈  ["min", "m", "minute"]
-        t1 = i1*sampling_interval/1000/60 #millisecond to minute
-        t0 = i0*sampling_interval/1000/60 #millisecond to minute
-    elseif scale ∈  ["sec", "s", "second"]
-        t1 = i1*sampling_interval/1000
-        t0 = i0*sampling_interval/1000
-    elseif scale ∈  ["millisecond", "ms"]
-        t1 = i1*sampling_interval
-        t0 = i0*sampling_interval
-    elseif scale ∈  ["hour", "hr", "h"]
-        t1 = i1*sampling_interval/1000/60/60
-        t0 = i0*sampling_interval/1000/60/60
+function meanvector(vectors::Vector{Sensor}, field::Symbol, xi::Union{AbstractRange, ClosedInterval})
+    # truncate and cumsum
+    truncated_vectors = [cumsum(getfield(v, field)[xi]) for v in vectors]
+    if length(unique(length.(truncated_vectors))) != 1
+        error("The lengths of $field vectors are not equal. Try without `xi` or with smaller `xi`.")
     end
-    xi = range(t0, t1, i1-i0) 
-    return xi
+    return dropdims(mean(cat(truncated_vectors..., dims = 2), dims = 2), dims = 2)
 end
-get_recording_time(i1, sampling_interval, scale) = get_recording_time(0, i1, sampling_interval, scale)
+meanvector(vectors::Vector{Sensor}, field::Symbol) = meanvector(vectors, field, 1:minimum(length.(getfield.(vectors, field))))
+
+function stdvector(vectors::AbstractVector, field::Symbol, xi::Union{AbstractRange, ClosedInterval})
+    truncated_vectors = [cumsum(getfield(v, field)[xi]) for v in vectors]
+    if length(unique(length.(truncated_vectors))) != 1
+        error("The lengths of $field vectors are not equal. Try without `xi` or with smaller `xi`.")
+    end
+    return AxisArray(vec(std(hcat(truncated_vectors...), dims = 2)), truncated_vectors[1].axes...)
+end
+stdvector(vectors::AbstractVector, field::Symbol) = stdvector(vectors, field, 1:minimum(length.(getfield.(vectors, field))))
+
+function semvector(vectors::AbstractVector, field::Symbol,  xi::Union{AbstractRange, ClosedInterval})
+    n = length(vectors)
+    stdval = stdvector(vectors, field, xi)
+    return AxisArray(stdval./sqrt(n), stdval.axes...)
+end
+semvector(vectors::AbstractVector, field::Symbol) = semvector(vectors, field, 1:minimum(length.(getfield.(vectors, field))))
 
 """ Get wait time from the data frame"""
 function get_sampling_interval(df::DataFrame)
@@ -143,7 +128,6 @@ function remove_long_touch(touch0::AbstractVector, thresh_interval)
     end
     return touch1 
 end
-
 
 """ Detect licks. 
 Given that a single lick lasts only a couple of milliseconds and the average lick interval is roughly 100 ms, a long-period touch is regarded as simple touch, but not lick. See also `detect_touch` and `remove_long_touch`"""

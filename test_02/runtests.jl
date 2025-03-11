@@ -30,12 +30,13 @@ function set_boundary(ax)
 end
 
 ## Initialize variables
+params = (
+    sampling_interval = 25ms,  #Sampling time interval. Probably 25 or 50 (ms). Sampling rate.
+    thresh_cap = 100, # sensor value
+    thresh_interval = 3, #sampling_interval * thresh_interval is the duration (ms). Allow up to 50ms for a single lick.
+    filter_windowsize = 50) #Number of data points. For baseline correction
 fnidx = [3,6,1,4,12,11,10] #arduino file name
 msidx = [1,2,3,4,6,7,8] #Corresponding mouse ID
-sampling_interval = 25ms  #Sampling time interval. Probably 25 or 50 (ms). Sampling rate.
-thresh_cap = 100 # sensor value
-thresh_interval = 3 #sampling_interval * thresh_interval is the duration (ms). Allow up to 50ms for a single lick.
-filter_windowsize = 50 #Number of data points. For baseline correction
 
 ## Load data
 cd("test_02")
@@ -47,48 +48,43 @@ dfs = CSV.read.(fns, DataFrame)
 i = 1 #First dataset
 df = dfs[i]
 rawdata = df[:, 2] #data from single port
-fedbox = df[:, 2] #data from single port
+fedbox = df[:, 1] #data from single - fake data
 
 ## Calculate licking events
-result = Sensor(rawdata, fedbox, sampling_interval, thresh_cap, thresh_interval, filter_windowsize)
+result = Sensor(rawdata, fedbox, params...)
 
-#### Plot capacitance sensor
-xims = result.lick.axes[1].val
-ximin  = uconvert.(u"minute", xims)
-xi = map(x -> x.val, ximin)
+xi  = uconvert.(minute, axisvalues(result.lick)...) |> ustrip #Convert to minute
 timescale = "min"
 
-## Plot raw data
+#### Plot capacitance sensor
 hfig = figure(figsize = (6,6), string(mouseid[i], " Lickometer"))
-p1 = hfig.add_subplot(4,1,1)
-p1.plot(xi, result.capacitive_data)
+p = [hfig.add_subplot(4,1,i) for i in 1:4]
+[p1.sharex(p[1]) for p1 in p]
+
+p[1].plot(xi, result.capacitive_data)
 xlabel("time ($timescale)")
 ylabel("Capacitance value")
 
 ## Plot corrected_rawdata
-p2 = hfig.add_subplot(4,1,2, sharex = p1)
-p2.plot(xi, result.corrected_capacitive_data)
+p[2].plot(xi, result.corrected_capacitive_data)
 xlabel("time ($timescale)")
 ylabel("Corrected data")
-p2.sharex(p1)
 
 ## Plot touch
-p3 = hfig.add_subplot(4,1,3, sharex = p1)
-p3.plot(xi, result.touch)
+p[3].plot(xi, result.touch)
 xlabel("time ($timescale)")
 ylabel("Touch")
-p3.sharex(p1)
 
 ## Plot lick
-p4 = hfig.add_subplot(4,1,4, sharex = p1)
-p4.plot(xi, result.lick)
-xlabel("time ($scale)")
+p[4].plot(xi, result.lick)
+xlabel("time ($timescale)")
 ylabel("Lick")
+
 hfig.tight_layout()
 p4.sharex(p1)
 
 ## Cumulative lick plot
-figure( figsize = (4,3), string(mouseid[i], " cumulative lick"));
+figure(figsize = (4,3), string(mouseid[i], " cumulative lick"));
 plot(xi, cumsum(detect_touchmoment(result.touch)))
 plot(xi, cumsum(result.lick))
 legend(["Touch", "Lick"])
@@ -98,50 +94,40 @@ tight_layout();
 
 
 #### Multiple datasets
+## Example datasets
 rawdatasets = map(x -> x[:,2], dfs)
-results, t0s, l0s = get_results(rawdatasets, sampling_interval, thresh_cap, thresh_interval, filter_windowsize)
+feddatasets = map(x -> x[:,1], dfs) #just fake data
 
-## Set x-axis. Scale x-axis (25 ms) into second.
-scale = "min"
-n = min(map(x -> length(x.rawdata), results)...) #The number of the smallest data points
-xi = get_recording_time(n, sampling_interval, scale) #total recording time in minute
-truncated_t0s = cumsum.(map(x -> x[eachindex(xi)], t0s)) #Cumulative sum
+## Sensor typing
+dataset1 = [Sensor(rawdatasets[1], feddatasets[1], params...),
+            Sensor(rawdatasets[2], feddatasets[2], params...)]
+dataset2 = [Sensor(rawdatasets[3], feddatasets[3], params...),
+            Sensor(rawdatasets[4], feddatasets[4], params...)]
 
-## Initialize figure axes
-f1 = figure(figsize=(4,6))
-p_axes = []
-for i in 1:length(results)+1
-    push!(p_axes, f1.add_subplot(length(results)+1, 1, i))
-    set_boundary(p_axes[i])
-end
+## Time can be either interval or range
+xi = 0minute .. 100minute
+fed_results = [Result("mCherry", "saline", :eating, dataset1,xi),
+               Result("mCherry", "saline", :eating, dataset2,xi)]
 
-## Plot Individual lick events
-for i in eachindex(results)
-    p_axes[i].plot(xi, results[i].lick[eachindex(xi)])
-    p_axes[i].set_ylabel(mouseid[i])
-end
-p_axes[1].set_title("Lick events", fontsize = 10)
-p_axes[7].set_xlabel("Time (min)")
+lick_results = [Result("mCherry", "saline", :lick, dataset1, xi),
+                Result("mCherry", "cno", :lick, dataset2, xi)]
 
-## truncate the recording time
-meanval = vec(mean(hcat(truncated_t0s...), dims = 2)) #mean
-stdval = vec(std(hcat(truncated_t0s...), dims = 2)) #stdev
+#### plot
+fig = figure()
+p = [fig.add_subplot(2, 3, i) for i in 1:6] #The first row and then the second row is filled.
+[p[i].sharey(p[1]) for i in 1:3]
+[p[i].sharey(p[4]) for i in 4:6]
 
-## Plot cumulative (Mean ± STD)
-p_axes[length(results)+1].plot(xi, meanval, label="Mean", color="blue")
-fill_between(xi, meanval .- stdval, meanval .+ stdval, color="blue", alpha=0.3)
-xlabel("Time ($scale)")
-ylabel("Cumulative lick")
+## feeding data plot
+xii = 0minute .. 100minute
+fm1 = fed_results[1].meanval[xii]
+fm2 = fed_results[2].meanval[xii]
+x1 = uconvert.(minute, axisvalues(fm1)...) |> ustrip
+p[1].plot(x1, fm1)
+p[2].plot(x1, fm2)
 
-## Set plot positions
-for i in 1:length(results)
-    p_axes[i].set_position([0.15, 0.87-(0.075*(i-1)), 0.8, 0.05])
-    i < length(results) ? p_axes[i].set_xticklabels(Int[]) : nothing #Last plot still has xticklabels
-end
-p_axes[length(results)+1].set_position([0.25, 0.1, 0.65, 0.2]) #Left, bottom, width, height
-
-
-
-
-lick = vcat(zeros(Int, 20), [0, 1, 1, 0, 0, 1], zeros(Int, 20))
-a = lickevent_filter(lick, 15, 3)
+## Lick data plot
+lm1 = lick_results[1].meanval[xii]
+lm2 = lick_results[2].meanval[xii]
+p[4].plot(x1, lm1)
+p[5].plot(x1, lm2)
