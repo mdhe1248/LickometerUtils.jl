@@ -34,7 +34,7 @@ params = (
     sampling_interval = 25ms,  #Sampling time interval. Probably 25 or 50 (ms). Sampling rate.
     thresh_cap = 100, # sensor value
     thresh_interval = 3, #sampling_interval * thresh_interval is the duration (ms). Allow up to 50ms for a single lick.
-    filter_windowsize = 50) #Number of data points. For baseline correction
+    filter_windowsize = 10) #Number of data points before and after a time point. For baseline correction
 fnidx = [3,6,1,4,12,11,10] #arduino file name
 msidx = [1,2,3,4,6,7,8] #Corresponding mouse ID
 
@@ -81,7 +81,6 @@ xlabel("time ($timescale)")
 ylabel("Lick")
 
 hfig.tight_layout()
-p4.sharex(p1)
 
 ## Cumulative lick plot
 figure(figsize = (4,3), string(mouseid[i], " cumulative lick"));

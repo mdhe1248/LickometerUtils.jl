@@ -17,6 +17,7 @@ struct Sensor <: AbstractSensor
     eating::AbstractVector
 
     function Sensor(capacitive_data, fedbox_data, sampling_interval, thresh_cap, thresh_interval, filter_windowsize)
+        capacitive_data[capacitive_data .== -2] .= 5000
         capacitive_data = AxisArray(capacitive_data, time = range(zero(eltype(sampling_interval)), step = sampling_interval, length = length(capacitive_data)))
         processed = preprocess_rawdata(capacitive_data)
         baseline = estimate_baseline(processed, filter_windowsize)
@@ -56,7 +57,7 @@ end
 
 function preprocess_rawdata(rawdata::AbstractVector)
     processed = copy(rawdata)
-    processed[processed .== -2] .= 5000
+#    processed[processed .== -2] .= 5000
     return processed
 end
 
@@ -65,13 +66,13 @@ function detect_eating(sensor::AbstractVector)
     return(bncdiff .== 1)
 end
 
-function estimate_baseline(rawdata::AbstractVector, window_size::Int)
+function estimate_baseline(rawdata::AbstractVector, window_size::Int; quantile_thresh = 0.2)
     if window_size <= 1
         return(rawdata)
     else
         result = similar(rawdata, Float64)
         for i in 1:length(rawdata)
-            result[i] = quantile(rawdata[max(1, i-window_size):i], 0.2)
+            result[i] = quantile(rawdata[max(1, i-window_size):min(i+window_size, length(rawdata))], quantile_thresh)
         end
         return result
     end
